@@ -28,6 +28,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest
 
       - name: Create Google credentials file
         env:
@@ -42,6 +43,7 @@ jobs:
           GOOGLE_CREDS_PATH: credentials.json
         run: |
           set -euo pipefail
+          # This step validates that all runnable scripts in src/ execute in CI.
           mapfile -t scripts < <(find src -maxdepth 1 -type f -name '*.py' | sort)
 
           if [ ${#scripts[@]} -eq 0 ]; then
@@ -53,6 +55,13 @@ jobs:
             echo "Running ${script}"
             python "${script}"
           done
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          # This step verifies script behavior with automated tests.
+          # The job fails automatically if any test fails.
+          pytest tests/
 
       - name: Remove credentials file
         if: always()
