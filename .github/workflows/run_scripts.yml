@@ -116,6 +116,23 @@ jobs:
           fi
           exit 0
 
+      - name: Upload CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          # Artifacts help debug CI failures and allow downloading generated pipeline data.
+          # Keep secrets out of artifacts by explicitly excluding credentials files.
+          name: ci-artifacts
+          path: |
+            ci_output/**
+            coverage.xml
+            pytest-tests.log
+            pytest-coverage.log
+            *.json
+            !credentials.json
+            !**/credentials.json
+          if-no-files-found: warn
+
       - name: Run coverage
         id: run_coverage
         if: steps.run_tests.outputs.exit_code == '0'
