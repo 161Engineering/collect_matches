@@ -21,3 +21,7 @@ data/*
 
 state/*
 !state/.gitkeep
+
+# Local-only launch/install helpers
+install.bat
+run.bat
