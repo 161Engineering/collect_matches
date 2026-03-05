@@ -8,12 +8,20 @@ from pathlib import Path
 import sys
 from unittest.mock import Mock, patch
 
+import pytest
+
 # Add project root so pytest can import modules from repository root.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import export_to_sheets as ets
+
+
+@pytest.fixture(autouse=True)
+def _force_non_ci_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep tests on the standard export path regardless of CI job env vars."""
+    monkeypatch.setattr(ets, "CI_MODE", False)
 
 
 def test_export_to_sheets_calls_append_with_expected_args() -> None:

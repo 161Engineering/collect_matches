@@ -18,6 +18,12 @@ if str(PROJECT_ROOT) not in sys.path:
 import export_to_sheets as ets
 
 
+@pytest.fixture(autouse=True)
+def _force_non_ci_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep advanced export assertions on the standard non-CI execution path."""
+    monkeypatch.setattr(ets, "CI_MODE", False)
+
+
 def _dummy_rows() -> list[list[object]]:
     """Provide a small valid data batch for append/upsert tests."""
     return [[101, "2026-03-05", "10:00", "A", "B", 75, 70, "division", "finished"]]

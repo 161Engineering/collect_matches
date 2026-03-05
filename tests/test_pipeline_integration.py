@@ -22,6 +22,14 @@ import export_to_sheets
 import run
 
 
+@pytest.fixture(autouse=True)
+def _force_non_ci_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure integration assertions run against standard pipeline branch logic."""
+    monkeypatch.setattr(run, "CI_MODE", False)
+    monkeypatch.setattr(collect_matches, "CI_MODE", False)
+    monkeypatch.setattr(export_to_sheets, "CI_MODE", False)
+
+
 def test_pipeline_integration_runs_safely(tmp_path: Path) -> None:
     """Run the real pipeline from run.py with safe mocks and local temp files only."""
     temp_data_dir = tmp_path / "data"
