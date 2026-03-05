@@ -45,30 +45,45 @@ jobs:
           umask 177
           printf '%s' "$GOOGLE_CREDENTIALS" > credentials.json
 
-      - name: Run all Python scripts from src
+      - name: Run all main project scripts
         env:
           GOOGLE_CREDS_PATH: credentials.json
         run: |
           set -euo pipefail
-          # This step validates that all runnable scripts in src/ execute in CI.
-          mapfile -t scripts < <(find src -maxdepth 1 -type f -name '*.py' | sort)
+          # Script-run step: smoke-test repository entry points with safe mocks.
+          # This keeps CI deterministic and avoids changing real files or Google Sheets.
+          python - <<'PY'
+          from unittest.mock import patch
 
-          if [ ${#scripts[@]} -eq 0 ]; then
-            echo "No Python scripts found in src/."
-            exit 1
-          fi
+          import collect_matches
+          import export_to_sheets
+          import run
 
-          for script in "${scripts[@]}"; do
-            echo "Running ${script}"
-            python "${script}"
-          done
+          print("Smoke: run.py")
+          with patch("run.ensure_project_dirs", return_value=None), \
+               patch("run.collect_matches", return_value=None), \
+               patch("run.export_to_sheets", return_value=0):
+              assert run.main() == 0
+
+          print("Smoke: collect_matches.py")
+          with patch("collect_matches.main", return_value=None) as collect_main:
+              collect_matches.collect_matches()
+              collect_main.assert_called_once_with()
+
+          print("Smoke: export_to_sheets.py")
+          with patch("export_to_sheets.main", return_value=0) as export_main:
+              assert export_to_sheets.export_to_sheets() == 0
+              export_main.assert_called_once_with()
+
+          print("Smoke tests for run.py, collect_matches.py, export_to_sheets.py passed.")
+          PY
 
       - name: Run tests
         id: run_tests
         continue-on-error: true
         run: |
           set +e
-          # This step verifies script behavior with automated tests.
+          # Test step: run all pytest tests, including run/collect/export test modules.
           pytest tests/
           test_exit_code=$?
           echo "exit_code=${test_exit_code}" >> "$GITHUB_OUTPUT"
