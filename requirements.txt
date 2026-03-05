@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+gspread
+oauth2client
+tqdm
+python-dotenv
+playwright
+tenacity
+urllib3
