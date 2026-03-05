@@ -60,6 +60,10 @@ def test_pipeline_integration_runs_safely(tmp_path: Path) -> None:
             # Patch browser and parser network layer for CI-safe execution.
             patch("collect_matches.sync_playwright"),
             patch("collect_matches.fetch_calendar", return_value=(sample_matches, sample_stats)),
+            patch(
+                "collect_matches.build_unique_output_path",
+                side_effect=lambda file_name, output_dir=temp_data_dir: output_dir / file_name,
+            ),
             # Isolate project directories to tmp_path to avoid real filesystem writes.
             patch.object(config, "DATA_DIR", temp_data_dir),
             patch.object(config, "STATE_DIR", temp_state_dir),
