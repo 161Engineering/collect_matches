@@ -29,6 +29,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Notify Telegram - pipeline started
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Telegram notifications provide quick visibility into pipeline lifecycle.
+          # Required secrets: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
+          # continue-on-error keeps CI running even if Telegram is unreachable.
+          MESSAGE=$(cat <<'EOF'
+          <b>🚀 Parser pipeline started</b>
+
+          Repository: ${{ github.repository }}
+          Branch: ${{ github.ref_name }}
+          Trigger: ${{ github.event_name }}
+          Run ID: ${{ github.run_id }}
+          EOF
+          )
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            --data-urlencode "text=${MESSAGE}" >/dev/null
+
       - name: Set runtime mode
         run: |
           # CI_MODE protects push/PR test runs from external side effects.
@@ -326,6 +350,50 @@ jobs:
         run: |
           # This step enforces a failing CI status when tests, coverage checks, or CI smoke run fail.
           exit 1
+
+      - name: Notify Telegram - success
+        if: success()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Telegram success notification helps track completed scheduled and CI runs.
+          MESSAGE=$(cat <<'EOF'
+          <b>✅ Parser pipeline finished successfully</b>
+
+          Repository: ${{ github.repository }}
+          Branch: ${{ github.ref_name }}
+          Run ID: ${{ github.run_id }}
+          EOF
+          )
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            --data-urlencode "text=${MESSAGE}" >/dev/null
+
+      - name: Notify Telegram - failure
+        if: failure()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          # Telegram failure notification provides immediate alerting for broken runs.
+          MESSAGE=$(cat <<'EOF'
+          <b>❌ Parser pipeline FAILED</b>
+
+          Repository: ${{ github.repository }}
+          Branch: ${{ github.ref_name }}
+          Run ID: ${{ github.run_id }}
+          EOF
+          )
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            --data-urlencode "text=${MESSAGE}" >/dev/null
 
       - name: Remove credentials file
         if: always()
