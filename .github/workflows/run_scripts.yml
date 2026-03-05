@@ -102,21 +102,82 @@ jobs:
           echo "exit_code=${coverage_exit_code}" >> "$GITHUB_OUTPUT"
           exit 0
 
+      - name: Check coverage threshold
+        id: coverage_gate
+        if: steps.run_tests.outputs.exit_code == '0' && steps.run_coverage.outputs.exit_code == '0'
+        continue-on-error: true
+        run: |
+          set +e
+          # Coverage check step: parse coverage.xml and enforce minimum 80% total coverage.
+          python - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+
+          output_path = os.environ["GITHUB_OUTPUT"]
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "")
+          coverage_file = "coverage.xml"
+
+          coverage_pct = 0.0
+          message = "❌ Coverage below 80%"
+          coverage_ok = "false"
+
+          try:
+            if not os.path.exists(coverage_file):
+              raise FileNotFoundError("coverage.xml not found")
+
+            root = ET.parse(coverage_file).getroot()
+            line_rate = float(root.attrib.get("line-rate", "0"))
+            coverage_pct = round(line_rate * 100, 2)
+
+            if coverage_pct >= 80.0:
+              message = "✅ Coverage acceptable"
+              coverage_ok = "true"
+          except Exception:
+            coverage_pct = 0.0
+            message = "❌ Coverage below 80%"
+            coverage_ok = "false"
+
+          print(f"{message} ({coverage_pct}%)")
+
+          with open(output_path, "a", encoding="utf-8") as fh:
+            fh.write(f"coverage_pct={coverage_pct}\n")
+            fh.write(f"coverage_ok={coverage_ok}\n")
+            fh.write(f"coverage_message={message}\n")
+
+          if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as fh:
+              fh.write(f"{message} ({coverage_pct}%)\n")
+
+          if coverage_ok != "true":
+            raise SystemExit(1)
+          PY
+          exit 0
+
       - name: Comment test result in PR
         if: always()
         uses: actions/github-script@v6
         env:
           TEST_EXIT_CODE: ${{ steps.run_tests.outputs.exit_code }}
           COVERAGE_EXIT_CODE: ${{ steps.run_coverage.outputs.exit_code }}
+          COVERAGE_OK: ${{ steps.coverage_gate.outputs.coverage_ok }}
+          COVERAGE_MESSAGE: ${{ steps.coverage_gate.outputs.coverage_message }}
+          COVERAGE_PCT: ${{ steps.coverage_gate.outputs.coverage_pct }}
         with:
           script: |
-            // Notification step: posts test result to the related Pull Request when available.
+            // Notification step: posts test and coverage status to the related Pull Request when available.
             const testExitCode = Number(process.env.TEST_EXIT_CODE ?? '1');
             const coverageExitCode = Number(process.env.COVERAGE_EXIT_CODE ?? '0');
-            const hasFailures = testExitCode !== 0 || (testExitCode === 0 && coverageExitCode !== 0);
-            const body = !hasFailures
-              ? '✅ All tests passed'
-              : '❌ Some tests failed';
+            const coverageOk = (process.env.COVERAGE_OK ?? '').toLowerCase() === 'true';
+            const coveragePct = process.env.COVERAGE_PCT ?? '';
+
+            const testsFailed = testExitCode !== 0;
+            const coverageFailed = testExitCode === 0 && (coverageExitCode !== 0 || !coverageOk);
+
+            const testsMessage = testsFailed ? '❌ Some tests failed' : '✅ All tests passed';
+            const defaultCoverageMessage = coverageFailed ? '❌ Coverage below 80%' : '✅ Coverage acceptable';
+            const coverageMessageBase = process.env.COVERAGE_MESSAGE || defaultCoverageMessage;
+            const coverageMessage = coveragePct ? `${coverageMessageBase} (${coveragePct}%)` : coverageMessageBase;
+            const body = `${testsMessage}\n${coverageMessage}`;
 
             let prNumber = context.payload.pull_request?.number;
 
@@ -145,21 +206,28 @@ jobs:
             });
 
       - name: Notify test success
-        if: steps.run_tests.outputs.exit_code == '0' && (steps.run_coverage.outputs.exit_code == '0' || steps.run_coverage.outputs.exit_code == '')
+        if: steps.run_tests.outputs.exit_code == '0' && steps.run_coverage.outputs.exit_code == '0' && steps.coverage_gate.outputs.coverage_ok == 'true'
         run: |
           # Notification step: makes successful test status obvious in logs and summary.
           echo "✅ All tests passed"
           echo "✅ All tests passed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Notify test failure
-        if: steps.run_tests.outputs.exit_code != '0' || (steps.run_tests.outputs.exit_code == '0' && steps.run_coverage.outputs.exit_code != '0')
+        if: steps.run_tests.outputs.exit_code != '0' || (steps.run_tests.outputs.exit_code == '0' && (steps.run_coverage.outputs.exit_code != '0' || steps.coverage_gate.outputs.coverage_ok != 'true'))
         run: |
           # Notification step: reports failed tests in logs and summary.
           echo "❌ Some tests failed"
           echo "❌ Some tests failed" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Notify coverage failure
+        if: steps.run_tests.outputs.exit_code == '0' && (steps.run_coverage.outputs.exit_code != '0' || steps.coverage_gate.outputs.coverage_ok != 'true')
+        run: |
+          # Coverage notification step: reports insufficient coverage threshold.
+          echo "❌ Coverage below 80%"
+          echo "❌ Coverage below 80%" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Fail workflow on test failure
-        if: steps.run_tests.outputs.exit_code != '0' || (steps.run_tests.outputs.exit_code == '0' && steps.run_coverage.outputs.exit_code != '0')
+        if: steps.run_tests.outputs.exit_code != '0' || (steps.run_tests.outputs.exit_code == '0' && (steps.run_coverage.outputs.exit_code != '0' || steps.coverage_gate.outputs.coverage_ok != 'true'))
         run: |
           # This step enforces a failing CI status when tests or coverage generation fail.
           exit 1
