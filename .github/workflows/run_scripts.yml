@@ -1,7 +1,13 @@
 name: Run Python scripts from src
 
 on:
+  # Keep push trigger for direct branch updates and backward compatibility.
   push:
+    branches:
+      - main
+      - master
+  # pull_request trigger is required so test-result comments are posted during PR checks.
+  pull_request:
     branches:
       - main
       - master
