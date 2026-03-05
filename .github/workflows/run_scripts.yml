@@ -85,7 +85,7 @@ jobs:
         run: |
           set +e
           # Test step: run all pytest tests, including run/collect/export test modules.
-          pytest tests/
+          pytest tests/ 2>&1 | tee pytest-tests.log
           test_exit_code=$?
           echo "exit_code=${test_exit_code}" >> "$GITHUB_OUTPUT"
           exit 0
@@ -96,11 +96,33 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          # Coverage step: generate XML report for Codecov integrations and print terminal summary.
-          pytest tests/ --cov=./ --cov-report=xml --cov-report=term
+          # Coverage step: generate XML + terminal + HTML reports for CI analysis and downloads.
+          pytest tests/ --cov=./ --cov-report=xml --cov-report=term --cov-report=html 2>&1 | tee pytest-coverage.log
           coverage_exit_code=$?
           echo "exit_code=${coverage_exit_code}" >> "$GITHUB_OUTPUT"
           exit 0
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          # Artifact step: publish coverage outputs for download from the Actions run.
+          name: coverage-report
+          path: |
+            coverage.xml
+            htmlcov/
+          if-no-files-found: warn
+
+      - name: Upload test log artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          # Artifact step: publish pytest logs (when available) for debugging failed runs.
+          name: test-results
+          path: |
+            pytest-tests.log
+            pytest-coverage.log
+          if-no-files-found: warn
 
       - name: Check coverage threshold
         id: coverage_gate
