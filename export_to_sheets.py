@@ -47,6 +47,13 @@ BASE_DIR = Path(__file__).resolve().parent
 JOURNAL_FILE = DATA_DIR / "workflow_journal.log"
 EXPORT_STATE_FILE = STATE_DIR / "export_state.json"
 
+CI_MODE = os.getenv("CI_MODE", "").strip().lower() == "true"
+if CI_MODE:
+    DATA_DIR = Path("ci_output")
+    STATE_DIR = DATA_DIR / "state"
+    JOURNAL_FILE = DATA_DIR / "workflow_journal.log"
+    EXPORT_STATE_FILE = STATE_DIR / "export_state.json"
+
 
 class TerminalJournalTee:
     def __init__(self, original_stream, log_file, script_name: str, stream_name: str) -> None:
@@ -1074,9 +1081,63 @@ def sync_dashboard_only() -> None:
     sync_analysis_dashboard(spreadsheet, worksheet)
 
 
+def run_ci_local_export(journal_handle) -> int:
+    """Run export in CI without external Google API calls."""
+    state = load_state()
+    last_exported_date = state["last_exported_date"]
+    append_workflow_journal("export_start", f"last_exported_date={last_exported_date}")
+
+    new_files = discover_new_data_files(DATA_DIR, last_exported_date)
+    last_processed_date: date | None = None
+
+    if new_files:
+        rows, last_processed_date = collect_rows_incrementally(new_files)
+    else:
+        latest_file = discover_latest_matches_file()
+        rows = collect_rows_from_file(latest_file) if latest_file is not None else []
+        last_processed_date = parse_iso_date(last_exported_date) or date.today()
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    ci_export_file = DATA_DIR / "ci_export_result.json"
+    ci_export_file.write_text(
+        json.dumps(
+            {
+                "mode": "ci_local_export",
+                "rows": rows,
+                "rows_count": len(rows),
+                "generated_at": datetime.now().isoformat(timespec="seconds"),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    if last_processed_date is not None:
+        save_state(last_processed_date.isoformat())
+
+    append_workflow_journal("export_done", f"mode=ci_local_export rows={len(rows)}")
+    journal_handle.write(
+        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
+    )
+    return 0
+
+
 def main() -> int:
     journal_handle = start_terminal_journal("export_to_sheets")
     setup_logging()
+
+    if CI_MODE:
+        # CI mode writes export artifacts locally and skips any Google API interaction.
+        try:
+            return run_ci_local_export(journal_handle)
+        except Exception as exc:
+            logging.exception("Ошибка CI local export: %s", exc)
+            append_workflow_journal("export_error", f"mode=ci_local_export error={exc}")
+            journal_handle.write(
+                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
+            )
+            return 1
 
     state = load_state()
     last_exported_date = state["last_exported_date"]

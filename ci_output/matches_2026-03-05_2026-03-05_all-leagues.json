@@ -1,0 +1,13 @@
+[
+  {
+    "match_id": 100001,
+    "date": "2026-03-05",
+    "time": "12:00",
+    "team1": "CI Team A",
+    "team2": "CI Team B",
+    "score1": 0,
+    "score2": 0,
+    "division": "ci-division",
+    "status": "scheduled"
+  }
+]

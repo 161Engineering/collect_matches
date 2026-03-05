@@ -1,0 +1,42 @@
+2026-03-05 16:46:16 | script=collect_matches | action=run_open
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | [INFO] Период парсинга: 05.03.2026 .. 05.03.2026
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | [INFO] Скорость зафиксирована: 10
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | [INFO] Режим лиг: автоматически собрать все доступные лиги с сайта
+2026-03-05 16:46:16 | script=collect_matches | action=parse_start | period=05.03.2026..05.03.2026
+2026-03-05 16:46:16 | script=collect_matches | action=parse_done | period=05.03.2026..05.03.2026 | matches=1 | file=matches_2026-03-05_2026-03-05_all-leagues.json | run_start=2026-03-05T16:46:16 | run_end=2026-03-05T16:46:16
+2026-03-05 16:46:16 | script=collect_matches | action=state_update | last_end_date=05.03.2026
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Собрано матчей: 1
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Всего лиг на сайте: 1
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Лиг с матчами за период: 1
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Лиг без матчей за период: 0
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Страниц без матчей (NO_MATCHES): 0
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Страниц не удалось отпарсить: 0
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Сохранено в файл: ci_output\matches_2026-03-05_2026-03-05_all-leagues.json
+2026-03-05 16:46:16 | script=collect_matches | stream=stdout | level=INFO | Лог обновлен: ci_output\workflow_journal.log
+2026-03-05 16:46:16 | script=export_to_sheets | action=run_open
+2026-03-05 16:46:16 | script=export_to_sheets | action=export_start | last_exported_date=0001-01-01
+2026-03-05 16:46:17 | script=export_to_sheets | action=state_update | last_exported_date=2026-03-05
+2026-03-05 16:46:17 | script=export_to_sheets | action=export_done | mode=ci_local_export rows=1
+2026-03-05 16:46:17 | script=export_to_sheets | action=run_close
+2026-03-05 16:46:16 | script=collect_matches | action=run_close
+2026-03-05 16:46:53 | script=collect_matches | action=run_open
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | [INFO] Период парсинга: 05.03.2026 .. 05.03.2026
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | [INFO] Скорость зафиксирована: 10
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | [INFO] Режим лиг: автоматически собрать все доступные лиги с сайта
+2026-03-05 16:46:53 | script=collect_matches | action=parse_start | period=05.03.2026..05.03.2026
+2026-03-05 16:46:53 | script=collect_matches | action=parse_done | period=05.03.2026..05.03.2026 | matches=1 | file=matches_2026-03-05_2026-03-05_all-leagues_v1.json | run_start=2026-03-05T16:46:53 | run_end=2026-03-05T16:46:53
+2026-03-05 16:46:53 | script=collect_matches | action=state_update | last_end_date=05.03.2026
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Собрано матчей: 1
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Всего лиг на сайте: 1
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Лиг с матчами за период: 1
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Лиг без матчей за период: 0
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Страниц без матчей (NO_MATCHES): 0
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Страниц не удалось отпарсить: 0
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Сохранено в файл: ci_output\matches_2026-03-05_2026-03-05_all-leagues_v1.json
+2026-03-05 16:46:53 | script=collect_matches | stream=stdout | level=INFO | Лог обновлен: ci_output\workflow_journal.log
+2026-03-05 16:46:53 | script=export_to_sheets | action=run_open
+2026-03-05 16:46:53 | script=export_to_sheets | action=export_start | last_exported_date=2026-03-05
+2026-03-05 16:46:54 | script=export_to_sheets | action=state_update | last_exported_date=2026-03-05
+2026-03-05 16:46:54 | script=export_to_sheets | action=export_done | mode=ci_local_export rows=1
+2026-03-05 16:46:54 | script=export_to_sheets | action=run_close
+2026-03-05 16:46:53 | script=collect_matches | action=run_close

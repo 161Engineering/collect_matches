@@ -1,5 +1,6 @@
 # финальный скрипт для парсинга матчей с сайта
 import json
+import os
 import random
 import re
 import sys
@@ -19,6 +20,11 @@ TARGET_DATE = "01.03.2026"
 OUTPUT_FILE = "matches_test_01032026.json"
 JOURNAL_FILE = DATA_DIR / "workflow_journal.log"
 SPEED_LEVEL = 6
+
+CI_MODE = os.getenv("CI_MODE", "").strip().lower() == "true"
+if CI_MODE:
+    DATA_DIR = Path("ci_output")
+    JOURNAL_FILE = DATA_DIR / "workflow_journal.log"
 
 
 class TerminalJournalTee:
@@ -903,11 +909,37 @@ def fetch_calendar(start_date_str: str, end_date_str: str, selected_leagues: lis
     return matches, stats
 
 
+def build_ci_mock_calendar(target_date_iso: str) -> tuple[list[dict], dict[str, int | list[str]]]:
+    """Provide deterministic local-only parser output for CI smoke runs."""
+    matches = [
+        {
+            "match_id": 100001,
+            "date": target_date_iso,
+            "time": "12:00",
+            "team1": "CI Team A",
+            "team2": "CI Team B",
+            "score1": 0,
+            "score2": 0,
+            "division": "ci-division",
+            "status": "scheduled",
+        }
+    ]
+    stats = {
+        "total_leagues_on_site": 1,
+        "leagues_with_matches": 1,
+        "leagues_without_matches": 0,
+        "leagues_without_matches_list": [],
+        "no_match_pages": 0,
+        "unparsed_pages": 0,
+    }
+    return matches, stats
+
+
 def main() -> None:
     journal_handle = start_terminal_journal("collect_matches")
     run_started_at = datetime.now()
     today_str = to_ddmmyyyy(date.today())
-    default_start_date = load_last_end_date(TARGET_DATE)
+    default_start_date = today_str if CI_MODE else load_last_end_date(TARGET_DATE)
 
     start_date_str = default_start_date
     end_date_str = today_str
@@ -932,7 +964,11 @@ def main() -> None:
             f"script=collect_matches | action=parse_start | period={start_date_str}..{end_date_str}\n"
         )
 
-    matches, stats = fetch_calendar(start_date_str=start_date_str, end_date_str=end_date_str, selected_leagues=selected_leagues)
+    if CI_MODE:
+        # CI mode skips live website parsing and produces safe deterministic data.
+        matches, stats = build_ci_mock_calendar(to_iso_date(end_date_str))
+    else:
+        matches, stats = fetch_calendar(start_date_str=start_date_str, end_date_str=end_date_str, selected_leagues=selected_leagues)
     output_file_name = build_output_file_name(
         start_date_str,
         end_date_str,
