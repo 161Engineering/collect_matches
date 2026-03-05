@@ -36,6 +36,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
+          pip install pytest-cov
 
       - name: Create Google credentials file
         env:
@@ -89,16 +90,31 @@ jobs:
           echo "exit_code=${test_exit_code}" >> "$GITHUB_OUTPUT"
           exit 0
 
+      - name: Run coverage
+        id: run_coverage
+        if: steps.run_tests.outputs.exit_code == '0'
+        continue-on-error: true
+        run: |
+          set +e
+          # Coverage step: generate XML report for Codecov integrations and print terminal summary.
+          pytest tests/ --cov=./ --cov-report=xml --cov-report=term
+          coverage_exit_code=$?
+          echo "exit_code=${coverage_exit_code}" >> "$GITHUB_OUTPUT"
+          exit 0
+
       - name: Comment test result in PR
         if: always()
         uses: actions/github-script@v6
         env:
           TEST_EXIT_CODE: ${{ steps.run_tests.outputs.exit_code }}
+          COVERAGE_EXIT_CODE: ${{ steps.run_coverage.outputs.exit_code }}
         with:
           script: |
             // Notification step: posts test result to the related Pull Request when available.
             const testExitCode = Number(process.env.TEST_EXIT_CODE ?? '1');
-            const body = testExitCode === 0
+            const coverageExitCode = Number(process.env.COVERAGE_EXIT_CODE ?? '0');
+            const hasFailures = testExitCode !== 0 || (testExitCode === 0 && coverageExitCode !== 0);
+            const body = !hasFailures
               ? '✅ All tests passed'
               : '❌ Some tests failed';
 
@@ -129,23 +145,23 @@ jobs:
             });
 
       - name: Notify test success
-        if: steps.run_tests.outputs.exit_code == '0'
+        if: steps.run_tests.outputs.exit_code == '0' && (steps.run_coverage.outputs.exit_code == '0' || steps.run_coverage.outputs.exit_code == '')
         run: |
           # Notification step: makes successful test status obvious in logs and summary.
           echo "✅ All tests passed"
           echo "✅ All tests passed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Notify test failure
-        if: steps.run_tests.outputs.exit_code != '0'
+        if: steps.run_tests.outputs.exit_code != '0' || (steps.run_tests.outputs.exit_code == '0' && steps.run_coverage.outputs.exit_code != '0')
         run: |
           # Notification step: reports failed tests in logs and summary.
           echo "❌ Some tests failed"
           echo "❌ Some tests failed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail workflow on test failure
-        if: steps.run_tests.outputs.exit_code != '0'
+        if: steps.run_tests.outputs.exit_code != '0' || (steps.run_tests.outputs.exit_code == '0' && steps.run_coverage.outputs.exit_code != '0')
         run: |
-          # This step enforces a failing CI status when tests fail.
+          # This step enforces a failing CI status when tests or coverage generation fail.
           exit 1
 
       - name: Remove credentials file
