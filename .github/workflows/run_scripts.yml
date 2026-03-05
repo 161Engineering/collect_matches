@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   run-src-scripts:
@@ -60,23 +61,70 @@ jobs:
         id: run_tests
         continue-on-error: true
         run: |
-          set -euo pipefail
+          set +e
           # This step verifies script behavior with automated tests.
           pytest tests/
+          test_exit_code=$?
+          echo "exit_code=${test_exit_code}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Comment test result in PR
+        if: always()
+        uses: actions/github-script@v6
+        env:
+          TEST_EXIT_CODE: ${{ steps.run_tests.outputs.exit_code }}
+        with:
+          script: |
+            // Notification step: posts test result to the related Pull Request when available.
+            const testExitCode = Number(process.env.TEST_EXIT_CODE ?? '1');
+            const body = testExitCode === 0
+              ? '✅ All tests passed'
+              : '❌ Some tests failed';
+
+            let prNumber = context.payload.pull_request?.number;
+
+            if (!prNumber) {
+              const associated = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: context.sha,
+              });
+
+              if (associated.data.length > 0) {
+                prNumber = associated.data[0].number;
+              }
+            }
+
+            if (!prNumber) {
+              core.info('No related Pull Request found. Skipping PR comment.');
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            });
 
       - name: Notify test success
-        if: steps.run_tests.outcome == 'success'
+        if: steps.run_tests.outputs.exit_code == '0'
         run: |
           # Notification step: makes successful test status obvious in logs and summary.
           echo "✅ All tests passed"
           echo "✅ All tests passed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Notify test failure
-        if: steps.run_tests.outcome == 'failure'
+        if: steps.run_tests.outputs.exit_code != '0'
         run: |
-          # Notification step: reports failed tests and fails the job explicitly.
+          # Notification step: reports failed tests in logs and summary.
           echo "❌ Some tests failed"
           echo "❌ Some tests failed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail workflow on test failure
+        if: steps.run_tests.outputs.exit_code != '0'
+        run: |
+          # This step enforces a failing CI status when tests fail.
           exit 1
 
       - name: Remove credentials file
