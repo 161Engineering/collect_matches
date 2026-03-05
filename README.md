@@ -44,3 +44,4 @@ run.bat
 - `credentials.json` исключен из Git
 - файлы из `data/` и `state/` исключены из Git
 - `data/.gitkeep` и `state/.gitkeep` сохраняют структуру папок в репозитории
+Test workflow trigger
