@@ -11,6 +11,10 @@ on:
     branches:
       - main
       - master
+  # schedule uses POSIX cron in UTC: "0 6 * * *" means every day at 06:00 UTC.
+  # This keeps the parser pipeline running automatically without manual pushes.
+  schedule:
+    - cron: "0 6 * * *"
 
 permissions:
   contents: read
@@ -27,6 +31,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Print workflow trigger
+        run: |
+          # Helpful for debugging scheduled runs vs push/PR executions.
+          echo "Workflow triggered by: ${{ github.event_name }}"
 
       - name: Set up Python
         uses: actions/setup-python@v5
