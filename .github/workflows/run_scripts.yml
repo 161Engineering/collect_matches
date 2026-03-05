@@ -57,11 +57,27 @@ jobs:
           done
 
       - name: Run tests
+        id: run_tests
+        continue-on-error: true
         run: |
           set -euo pipefail
           # This step verifies script behavior with automated tests.
-          # The job fails automatically if any test fails.
           pytest tests/
+
+      - name: Notify test success
+        if: steps.run_tests.outcome == 'success'
+        run: |
+          # Notification step: makes successful test status obvious in logs and summary.
+          echo "✅ All tests passed"
+          echo "✅ All tests passed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify test failure
+        if: steps.run_tests.outcome == 'failure'
+        run: |
+          # Notification step: reports failed tests and fails the job explicitly.
+          echo "❌ Some tests failed"
+          echo "❌ Some tests failed" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
 
       - name: Remove credentials file
         if: always()
