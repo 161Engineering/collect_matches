@@ -24,13 +24,24 @@ jobs:
   run-src-scripts:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      # CI_MODE enables safe local-only execution paths in project scripts.
-      CI_MODE: "true"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Set runtime mode
+        run: |
+          # CI_MODE protects push/PR test runs from external side effects.
+          # Scheduled runs execute the real production pipeline.
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "CI_MODE=false" >> "$GITHUB_ENV"
+          else
+            echo "CI_MODE=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Print runtime mode
+        run: |
+          echo "Runtime mode: CI_MODE=$CI_MODE"
 
       - name: Print workflow trigger
         run: |
