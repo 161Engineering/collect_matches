@@ -1,0 +1,41 @@
+# Python cache
+**pycache**/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+credentials.json
+
+# Runtime data
+data/*
+!data/.gitkeep
+state/*
+!state/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# CI artifacts and generated files
+ci_output/*
+!ci_output/.gitkeep
+*.zip
+*.log
+*.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project-specific local-only folders
+user_data/
+NOT_FOR_CUSTOMER/
+
+# Local CI validation helper (do not commit by default)
+scripts/validate_ci_pipeline.py
