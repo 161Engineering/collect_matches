@@ -38,59 +38,6 @@ def get_calendar_url() -> str:
     return CALENDAR_URL
 
 
-class TerminalJournalTee:
-    def __init__(self, original_stream, log_file, script_name: str, stream_name: str) -> None:
-        self.original_stream = original_stream
-        self.log_file = log_file
-        self.script_name = script_name
-        self.stream_name = stream_name
-        self.buffer = ""
-
-    def write(self, text: str) -> int:
-        if not text:
-            return 0
-
-        self.original_stream.write(text)
-        self.buffer += text
-
-        while "\n" in self.buffer:
-            line, self.buffer = self.buffer.split("\n", 1)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            level = detect_stream_level(line)
-            self.log_file.write(
-                f"{timestamp} | script={self.script_name} | stream={self.stream_name} | level={level} | {line}\n"
-            )
-
-        self.log_file.flush()
-        return len(text)
-
-    def flush(self) -> None:
-        if self.buffer:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            level = detect_stream_level(self.buffer)
-            self.log_file.write(
-                f"{timestamp} | script={self.script_name} | stream={self.stream_name} | level={level} | {self.buffer}\n"
-            )
-            self.buffer = ""
-        self.log_file.flush()
-        self.original_stream.flush()
-
-    def __getattr__(self, name: str):
-        return getattr(self.original_stream, name)
-
-
-def start_terminal_journal(script_name: str):
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    log_file = JOURNAL_FILE.open("a", encoding="utf-8")
-    run_mark = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_file.write(f"{run_mark} | script={script_name} | action=run_open\n")
-    log_file.flush()
-
-    sys.stdout = TerminalJournalTee(sys.stdout, log_file, script_name, "stdout")
-    sys.stderr = TerminalJournalTee(sys.stderr, log_file, script_name, "stderr")
-    return log_file
-
-
 def detect_stream_level(line: str) -> str:
     upper_line = (line or "").upper()
     if "ERROR" in upper_line:
@@ -943,7 +890,6 @@ def save_parse_summary(start_date_str: str, end_date_str: str, matches_count: in
 
 
 def main(start_date_override: str | None = None) -> None:
-    journal_handle = start_terminal_journal("collect_matches")
     run_started_at = datetime.now()
     today_str = to_ddmmyyyy(date.today())
     default_start_date = (start_date_override or "").strip() or load_last_end_date(TARGET_DATE)
@@ -1006,10 +952,6 @@ def main(start_date_override: str | None = None) -> None:
     print(f"Страниц обработано успешно: {stats['parsed_pages']} из {stats['total_pages']}")
     print(f"Сохранено в файл: {output_path}")
     print(f"Лог обновлен: {JOURNAL_FILE}")
-
-    journal_handle.write(
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=collect_matches | action=run_close\n"
-    )
 
 
 def collect_matches(start_date_override: str | None = None) -> None:

@@ -73,67 +73,6 @@ def save_export_summary(
     }
     EXPORT_SUMMARY_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-class TerminalJournalTee:
-    def __init__(self, original_stream, log_file, script_name: str, stream_name: str) -> None:
-        self.original_stream = original_stream
-        self.log_file = log_file
-        self.script_name = script_name
-        self.stream_name = stream_name
-        self.buffer = ""
-
-    def write(self, text: str) -> int:
-        if not text:
-            return 0
-
-        self.original_stream.write(text)
-        self.buffer += text
-
-        while "\n" in self.buffer:
-            line, self.buffer = self.buffer.split("\n", 1)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            level = detect_stream_level(line)
-            self.log_file.write(
-                f"{timestamp} | script={self.script_name} | stream={self.stream_name} | level={level} | {line}\n"
-            )
-
-        self.log_file.flush()
-        return len(text)
-
-    def flush(self) -> None:
-        if self.buffer:
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            level = detect_stream_level(self.buffer)
-            self.log_file.write(
-                f"{timestamp} | script={self.script_name} | stream={self.stream_name} | level={level} | {self.buffer}\n"
-            )
-            self.buffer = ""
-        self.log_file.flush()
-        self.original_stream.flush()
-
-    def __getattr__(self, name: str):
-        return getattr(self.original_stream, name)
-
-
-def start_terminal_journal(script_name: str):
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    log_file = JOURNAL_FILE.open("a", encoding="utf-8")
-    run_mark = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_file.write(f"{run_mark} | script={script_name} | action=run_open\n")
-    log_file.flush()
-
-    sys.stdout = TerminalJournalTee(sys.stdout, log_file, script_name, "stdout")
-    sys.stderr = TerminalJournalTee(sys.stderr, log_file, script_name, "stderr")
-    return log_file
-
-
-def detect_stream_level(line: str) -> str:
-    upper_line = (line or "").upper()
-    if "ERROR" in upper_line:
-        return "ERROR"
-    if "WARN" in upper_line or "WARNING" in upper_line:
-        return "WARN"
-    return "INFO"
-
 
 def setup_logging() -> None:
     logging.basicConfig(
@@ -1154,7 +1093,6 @@ def sync_dashboard_only() -> dict[str, int | str]:
 
 
 def main() -> int:
-    journal_handle = start_terminal_journal("export_to_sheets")
     setup_logging()
 
     state = load_state()
@@ -1177,9 +1115,6 @@ def main() -> int:
                 logging.exception("Ошибка refresh-upsert в Google Sheets: %s", exc)
                 append_workflow_journal("export_error", f"mode=refresh_upsert error={exc}")
                 save_export_summary(mode="refresh_upsert", status="error")
-                journal_handle.write(
-                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-                )
                 return 1
             save_export_summary(
                 mode="refresh_upsert",
@@ -1192,9 +1127,6 @@ def main() -> int:
                 spreadsheet_name=str(summary.get("spreadsheet_name", SPREADSHEET_NAME)),
             )
             append_workflow_journal("export_done", f"mode=refresh_upsert rows={len(rows_for_refresh)}")
-            journal_handle.write(
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-            )
             return 0
 
         logging.info("Новых файлов для экспорта нет. Выполняю синхронизацию analysis")
@@ -1204,9 +1136,6 @@ def main() -> int:
             logging.exception("Ошибка синхронизации analysis: %s", exc)
             append_workflow_journal("export_error", f"mode=sync_only error={exc}")
             save_export_summary(mode="sync_only", status="error")
-            journal_handle.write(
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-            )
             return 1
         save_export_summary(
             mode="sync_only",
@@ -1215,9 +1144,6 @@ def main() -> int:
             spreadsheet_name=str(sync_summary.get("spreadsheet_name", SPREADSHEET_NAME)),
         )
         append_workflow_journal("export_done", "mode=sync_only")
-        journal_handle.write(
-            f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-        )
         return 0
 
     rows, last_processed_date = collect_rows_incrementally(new_files)
@@ -1226,9 +1152,6 @@ def main() -> int:
         logging.warning("Нет корректно обработанных файлов, экспорт пропущен")
         save_export_summary(mode="skipped_no_valid_files", status="ok")
         append_workflow_journal("export_done", "mode=skipped_no_valid_files")
-        journal_handle.write(
-            f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-        )
         return 0
 
     if not rows:
@@ -1239,9 +1162,6 @@ def main() -> int:
             logging.exception("Ошибка синхронизации analysis: %s", exc)
             append_workflow_journal("export_error", f"mode=empty_rows_sync error={exc}")
             save_export_summary(mode="empty_rows_sync", status="error")
-            journal_handle.write(
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-            )
             return 1
         save_state(last_processed_date.isoformat())
         save_export_summary(
@@ -1251,9 +1171,6 @@ def main() -> int:
             spreadsheet_name=str(sync_summary.get("spreadsheet_name", SPREADSHEET_NAME)),
         )
         append_workflow_journal("export_done", "mode=empty_rows_sync")
-        journal_handle.write(
-            f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-        )
         return 0
 
     try:
@@ -1262,9 +1179,6 @@ def main() -> int:
         logging.exception("Ошибка экспорта в Google Sheets: %s", exc)
         append_workflow_journal("export_error", f"mode=append error={exc}")
         save_export_summary(mode="append", status="error")
-        journal_handle.write(
-            f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-        )
         return 1
 
     save_state(last_processed_date.isoformat())
@@ -1280,9 +1194,6 @@ def main() -> int:
     )
     logging.info("Экспорт завершен: добавлено строк %s", len(rows))
     append_workflow_journal("export_done", f"mode=append rows={len(rows)}")
-    journal_handle.write(
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | script=export_to_sheets | action=run_close\n"
-    )
     return 0
 
 
