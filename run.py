@@ -8,7 +8,7 @@ from typing import Any
 
 from collect_matches import collect_matches
 from config import DATA_DIR, SPREADSHEET_NAME, STATE_DIR, ensure_project_dirs
-from export_to_sheets import export_to_sheets, get_latest_match_date_from_sheet
+from export_to_sheets import export_to_sheets, get_latest_match_date_from_sheet_with_retry
 from notifications.telegram_report import send_pipeline_report
 
 
@@ -86,7 +86,7 @@ def main() -> int:
     stage_name = "sheet_access_check"
 
     try:
-        start_date_from_sheet = get_latest_match_date_from_sheet()
+        start_date_from_sheet = get_latest_match_date_from_sheet_with_retry()
         stage_name = "collect_matches"
         collect_matches(start_date_override=start_date_from_sheet)
         stage_name = "export_to_sheets"

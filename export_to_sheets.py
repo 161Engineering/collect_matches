@@ -11,11 +11,11 @@ from typing import Any
 import gspread
 import urllib3
 from google.auth.exceptions import TransportError
-from gspread.exceptions import WorksheetNotFound
+from gspread.exceptions import APIError, WorksheetNotFound
 from gspread.utils import ValueInputOption
 from gspread.worksheet import Worksheet
 from google.oauth2.service_account import Credentials
-from tenacity import RetryCallState, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import RetryCallState, retry, retry_if_exception, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from config import DATA_DIR, GOOGLE_CREDS_PATH, SPREADSHEET_NAME, STATE_DIR
 
@@ -967,15 +967,65 @@ RETRYABLE_GOOGLE_API_EXCEPTIONS = (
     socket.timeout,
 )
 
+RETRYABLE_GOOGLE_API_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+def _extract_google_api_status_code(exc: APIError) -> int | None:
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+
+    for attr_name in ("status_code", "status"):
+        raw_value = getattr(response, attr_name, None)
+        if isinstance(raw_value, int):
+            return raw_value
+        if isinstance(raw_value, str) and raw_value.isdigit():
+            return int(raw_value)
+
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+
+    if not isinstance(payload, dict):
+        return None
+
+    error_payload = payload.get("error")
+    if not isinstance(error_payload, dict):
+        return None
+
+    raw_code = error_payload.get("code")
+    if isinstance(raw_code, int):
+        return raw_code
+    if isinstance(raw_code, str) and raw_code.isdigit():
+        return int(raw_code)
+    return None
+
+
+def _is_retryable_google_api_error(exc: BaseException) -> bool:
+    if not isinstance(exc, APIError):
+        return False
+
+    status_code = _extract_google_api_status_code(exc)
+    return status_code in RETRYABLE_GOOGLE_API_STATUS_CODES
+
 
 def google_api_retry():
     return retry(
-        retry=retry_if_exception_type(RETRYABLE_GOOGLE_API_EXCEPTIONS),
+        retry=(
+            retry_if_exception_type(RETRYABLE_GOOGLE_API_EXCEPTIONS)
+            | retry_if_exception(_is_retryable_google_api_error)
+        ),
         stop=stop_after_attempt(7),
         wait=wait_exponential(multiplier=1, min=4, max=60),
         after=_log_retry_failure,
         reraise=True,
     )
+
+
+@google_api_retry()
+def get_latest_match_date_from_sheet_with_retry() -> str:
+    return get_latest_match_date_from_sheet()
 
 
 @google_api_retry()
